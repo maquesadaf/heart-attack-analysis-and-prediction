@@ -18,4 +18,5 @@ Estructura:
 
 ## Vídeo de presentación
 
-Enlace al vídeo de presentación de la práctica: [https://drive.google.com/file/d/1EjejwLPnk3GdZu8EYH2s1NwuWcZsQnCh/view?usp=share_link](https://drive.google.com/file/d/1EjejwLPnk3GdZu8EYH2s1NwuWcZsQnCh/view?usp=share_link)
+Enlace al vídeo de presentación de la práctica: 
+https://drive.google.com/file/d/1QC42GHxbWTXpgq5MAcuggonXPDfa87tR/view?usp=share_link
