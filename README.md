@@ -11,10 +11,10 @@ Este proyecto tiene como objetivo realizar un analisis de datos del conjunto de 
 https://www.kaggle.com/datasets/rashikrahmanpritom/heart-attack-analysis-prediction- dataset
 
 Estructura:
-/dataset/heart.csv: Conjunto de datos original
-/dataset/heart_clean.csv: Conjunto de datos limpio original
-/memoria/maquesadaf-PRA2.pdf: Documento de respuestas.
-/source/maquesadaf-PRA2.Rmd: Archivo principal.
+* /dataset/heart.csv: Conjunto de datos original
+* /dataset/heart_clean.csv: Conjunto de datos limpio original
+* /memoria/maquesadaf-PRA2.pdf: Documento de respuestas.
+* /source/maquesadaf-PRA2.Rmd: Archivo principal.
 
 ## Vídeo de presentación
 
