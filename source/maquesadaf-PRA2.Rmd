@@ -1,0 +1,510 @@
+---
+title: "¿Cómo realizar la limpieza y análisis de datos?"
+author: "Miguel Ángel Quesada Fernández"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: true
+  html_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pagebreak <- function() {
+  if(knitr::is_latex_output())
+    return("\\newpage")
+  else
+    return('<div style="page-break-before: always;" />')
+}
+```
+
+```{r load_libraries, include=FALSE}
+library(knitr)
+if (!require('ggplot2')) install.packages('ggplot2'); library('ggplot2')
+if(!require('Rmisc')) install.packages('Rmisc'); library('Rmisc')
+if(!require('dplyr')) install.packages('dplyr'); library('dplyr')
+if(!require('cowplot')) install.packages('cowplot'); library('cowplot')
+if(!require("caret")) install.packages("caret"); library("caret")
+if(!require("car")) install.packages("caret"); library("car")
+```
+
+`r pagebreak()`
+
+En esta práctica se va a abordar las primeras fases de un proyecto de minería de datos, para ello se va a utilizar la metodología CRISP-DM que proporcionado un modelo estructurado basado en 6 etapas con dependencia entre sí. En esta práctica se van a abordar únicamente las cuatro primeras etapas, haciendo especialmente enfases en las tres primeras, y abordando una pequeña modelización de un modelo de regresión, sin profundizar en sus resultados como parte del análisis de los datos:
+
+- ETAPA 1 – Determinar los objetivos de negocio y análisis de la situación actual
+- ETAPA 2 – Comprensión de los datos
+- ETAPA 3 – Preparación de los datos
+- ETAPA 4 – Modelado
+
+# Determinar los objetivos de negocio y análisis de la situación actual
+
+La primera fase trata de entender el negocio, estableciendo los requisitos y los objetivos del proyecto tanto a nivel empresarial como técnico para posteriormente trasladarlos a objetivos técnicos y un plan de proyecto.
+
+Como resultado de esta fase:
+
+- Se realizará un análisis de la situación actual
+- Se establecerán los requisitos, restricciones y asunciones del proyecto
+- Se establecerá la pregunta objetivo y los resultados esperados del proyecto
+
+## Análisis de la situación actual
+
+Se dispone de un conjunto de datos fechados en 1988 que contienen información de pacientes de Cleveland, Hungria, Suiza y Long Beach V. El conjunto original de datos disponía inicialmente 76 variables, pero todos los estudios posteriores se han referido exclusivamente a un subconjunto de sólo 14 variables. Una de estas variables es la variable objetivo, que determina la presencia de alguna enfermedad de corazon en el paciente.
+
+El conjunto inicial de datos puede encontrarse en la plataforma kaggle:
+https://www.kaggle.com/datasets/rashikrahmanpritom/heart-attack-analysis-prediction-dataset
+
+
+## Requisitos, restricciones y asunciones
+
+A continuación, se retallan los requisitos, restricciones y asunciones que se van a realizar.
+
+ - Los datos necesarios serán los obtenidos en el dataset de kaggle proporcionado para la práctica: https://www.kaggle.com/datasets/rashikrahmanpritom/heart-attack-analysis-prediction-dataset.
+
+ - Se ha seleccionado un dataset que tuviese capacidades de aplicar un modelo supervisado y no supervisado, y además con garantías de poder generar un modelo que pueda predecir con precisión.
+
+## ¿Qué pregunta se está intentando responder?
+
+Conocidas una serie de variables del paciente queremos determinar **si el paciente presenta una enfermedad del corazon o no**.
+
+En concreto, queremos analizar la presencia de enfermedades cardíacas atendiendo a variables como la edad, sexo, presión arterial en reposo, y colesterol.
+
+## ¿Cuáles son los resultados esperados del proyecto?
+
+En esta práctica se van a abordar principalmente cuatro objetivos:
+
+  - Se va a plantear un problema de analítica de datos detallando los objetivos analíticos y explicando la metodologia adecuada.
+  - Se va a acondicionar el juego de datos.
+  - Se va a intentar contrastar diversas hipotesis.
+
+Como parte del análisis se realizará los siguientes puntos:
+
+  - Selección de algoritmo de regresión
+  - Generación de modelo de regresión capaz de generalizar los datos
+  
+Queda fuera del alcance de esta práctica los siguientes puntos que se abordarían siguiendo la metodología CRISP-DM:
+  - Evaluación del modelo
+  - Implantación
+
+# Comprensión de los datos y preparación de los datos
+
+En esta fase se realiza la recolección y exploración inicial de los datos a fin de tener un primer contacto con el problema. Un mal entendimiento de los datos puede tener como consecuencia un aumento del tiempo del proyecto y una peor calidad del modelo generado.
+
+Como consecuencia de esta fase se realizarán las siguientes tareas:
+
+## Captura de los datos
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# Leemos el fichero de datos
+heartDiseaseDS <- read.csv('heart.csv')
+```
+
+## Descripción de los datos
+Queremos hacer una primera aproximación al conjunto de los datos realizando una descripción de las variables, su tipología, como se distribuyen los valores...
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Obtenemos la estructura del DataSet
+estructura = str(heartDiseaseDS, list.len=ncol(heartDiseaseDS))
+```
+Observamos que disponemos de 303 observaciones con 14 variables, siendo una de esas variables la variable objetivo.
+
+Echamos un vistazo preliminar a los datos para ver su contenido y estructura:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+head(heartDiseaseDS, 5)
+```
+
+A continuación, identificamos las observaciones y construimos un pequeño diccionario de datos utilizando la documentación proporcionada en la página de kaggle del dataset.
+
+El conjunto de datos dispone de:
+
+  - 5 variables númericas
+  - 4 variables binarias
+  - 4 variables categoricas 
+  - 1 variable objetico de tipo binaria
+  
+Se describen las variables:
+
+  - **AGE**: Edad del paciente        *(Variable númerica)*
+  - **SEX**: Sexo del paciente        *(Variable binaria)*
+    - 0 - Mujer
+    - 1 - Hombre
+  - **CP**: Tipo de dolor en el pecho del paciente.      *(Variable categórica)*
+    - 0 - Angina típica
+    - 1 - Angina atípica
+    - 2 - Dolor no anginal
+    - 3 - Asíntomática
+  - **TRTBPS**: Presión sanguínea en reposo (en mg Hg en admisión al hospital) *(Variable númerica)*
+  - **CHOL**: Colesterol (mg/dl)        *(Variable númerica)*
+  - **FBS**: Azucar en sangre en ayunas (> 120mg/dl) *(Variable binaria)*
+    - 0 - No
+    - 1 - Si
+  - **RESTECG**: Resultados del electrócardiograma en reposo. *(Variable binaria)*
+    - 0 - Normal
+    - 1 - Onda ST-T anormal 
+    - 2 - Hipertrofía ventriculo izquierdo  
+  - **THALACHH**: Pulso corazón máximo registrado    *(Variable númerica)*
+  - **EXNG**: Angina inducida por ejercicio   *(Variable binaria)*
+    - 0 - No
+    - 1 - Si
+  - **OLDPEAK**:Depresión ST inducida por el ejercicio en relación con el descanso *(Variable númerica)*
+  - **SLP**: Pendiente del segmento ST de ejercicio máximo *(Variable categórica)*
+    - 0 - Pendiente de subida
+    - 1 - Plano
+    - 2 - Pendiente de bajada
+  - **CAA**: Número de vasos principales en el corazón observados con Fluoroscopia *(Variable categorica)*
+    - 0
+    - 1
+    - 2
+    - 3
+  - **THALL**:   *(Variable categórica)*
+    - 0 - Normal
+    - 1 - Defecto permanente
+    - 2 - Defecto reversible
+  - **OUTPUT**:   *(Variable binaria)*
+    - 0 - Presenta enfermedad cardiaca
+    - 1 - No presenta enfermedad cardiaca
+
+## Exploración de los datos mediante técnicas descriptivas
+
+Determinación de la consistencia, cantidad y distribución de valores nulos o fuera de rango.
+Con esta información se obtendrá un informe de calidad de los datos que listará los resultados de las verificaciones realizadas, y sugerirá los posibles tratamientos para mejorar la calidad de los datos. Estos tratamientos se realizarán en la siguiente fase.
+
+Empezamos obteniendo una serie de datos estadísticos simples (media, moda, quartiles…). Como podemos observar todas las variables se han identificado de tipo númerico, calculandose valores como la media que no tienen sentido en las variables de tipo categórico.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Observamos variables estadísticas del conjunto de datos
+summary(heartDiseaseDS)
+```
+
+## Outliers
+
+Tras una primera inspección podemos observar como algunos valores están fuera del rango contemplado para el dataset, presuponiendo que se trata de muestras de mala calidad, vamos a proceder a su eliminación:
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# Eliminamos aquellas muestras cuyo valor de "ca" no está en el rango de 0 a 3
+heartDiseaseDS<-heartDiseaseDS[(heartDiseaseDS$caa>=0 & heartDiseaseDS$caa<=3),]
+
+# Eliminamos aquellas muestras cuyo valor de "thall" no está en el rango de 0 a 2
+heartDiseaseDS<-heartDiseaseDS[(heartDiseaseDS$thall>=1 & heartDiseaseDS$thall<3),]
+```
+
+## Nulos y blancos
+
+El siguiente paso será la limpieza de datos, mirando si hay valores vacíos o nulos.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+print('NA')
+colSums(is.na(heartDiseaseDS))
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+print('Blancos')
+colSums(heartDiseaseDS=="",)
+```
+
+Observamos que no hay valores nulos ni blancos en el conjunto de datos. Por lo que no es preciso realizar ningún tipo de acción para eliminar afectados.
+
+## Factorización
+
+A continuación, procedemos a factorizar aquellas variables que se han identificado de tipo númerico pero que realmente son variables de tipo categorico.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Reemplazamos las variables categóricas / binarias por su significado
+
+# Sexo
+heartDiseaseDS$sex <- replace(heartDiseaseDS$sex, heartDiseaseDS$sex =="0", "Mujer")
+heartDiseaseDS$sex <- replace(heartDiseaseDS$sex, heartDiseaseDS$sex =="1", "Hombre")
+
+# Dolor en pecho
+heartDiseaseDS$cp <- replace(heartDiseaseDS$cp, heartDiseaseDS$cp =="0",
+                             "Angina tipica")
+heartDiseaseDS$cp <- replace(heartDiseaseDS$cp, heartDiseaseDS$cp =="1",
+                             "Angina atipica")
+heartDiseaseDS$cp <- replace(heartDiseaseDS$cp, heartDiseaseDS$cp =="2",
+                             "Dolor no anginal")
+heartDiseaseDS$cp <- replace(heartDiseaseDS$cp, heartDiseaseDS$cp =="3",
+                             "Asíntomática")
+
+# Azúcar en sangre
+heartDiseaseDS$fbs <- replace(heartDiseaseDS$fbs, heartDiseaseDS$fbs =="0", "No")
+heartDiseaseDS$fbs <- replace(heartDiseaseDS$fbs, heartDiseaseDS$fbs =="1", "Si")
+
+# Resultados electrócardiograma en reposo
+heartDiseaseDS$restecg <- replace(heartDiseaseDS$restecg, heartDiseaseDS$restecg =="0",
+                                  "Normal")
+heartDiseaseDS$restecg <- replace(heartDiseaseDS$restecg, heartDiseaseDS$restecg =="1",
+                                  "Onda ST-T anormal")
+heartDiseaseDS$restecg <- replace(heartDiseaseDS$restecg, heartDiseaseDS$restecg =="2",
+                                  "Hipertrofía ventriculo izquierdo")
+
+# Angina inducida por el ejercicio
+heartDiseaseDS$exng <- replace(heartDiseaseDS$exng, heartDiseaseDS$exng =="0", "No")
+heartDiseaseDS$exng <- replace(heartDiseaseDS$exng, heartDiseaseDS$exng =="1", "Si")
+
+# Pendiente segmento ST de ejercicio máximo
+heartDiseaseDS$slp <- replace(heartDiseaseDS$slp, heartDiseaseDS$slp =="0",
+                              "Pendiente de subida")
+heartDiseaseDS$slp <- replace(heartDiseaseDS$slp, heartDiseaseDS$slp =="1",
+                              "Plano")
+heartDiseaseDS$slp <- replace(heartDiseaseDS$slp, heartDiseaseDS$slp =="2",
+                              "Pendiente de bajada")
+
+# Thal
+heartDiseaseDS$thall <- replace(heartDiseaseDS$thall, heartDiseaseDS$thall =="1",
+                                "Normal")
+heartDiseaseDS$thall <- replace(heartDiseaseDS$thall, heartDiseaseDS$thall =="2",
+                                "Defecto permanente")
+heartDiseaseDS$thall <- replace(heartDiseaseDS$thall, heartDiseaseDS$thall =="3",
+                                "Defecto reversible")
+
+# Target
+heartDiseaseDS$output <- replace(heartDiseaseDS$output, heartDiseaseDS$output =="0",
+                                 "Con enfermedad cardiaca")
+heartDiseaseDS$output <- replace(heartDiseaseDS$output, heartDiseaseDS$output =="1",
+                                 "Sin enfermedad cardiaca")
+
+# Convertimos las variables categoricas
+heartDiseaseDS$sex <- as.factor(heartDiseaseDS$sex)
+heartDiseaseDS$cp <- as.factor(heartDiseaseDS$cp)
+heartDiseaseDS$fbs <- as.factor(heartDiseaseDS$fbs)
+heartDiseaseDS$restecg <- as.factor(heartDiseaseDS$restecg)
+heartDiseaseDS$exng <- as.factor(heartDiseaseDS$exng)
+heartDiseaseDS$caa <- as.factor(heartDiseaseDS$caa)
+heartDiseaseDS$thall <- as.factor(heartDiseaseDS$thall)
+heartDiseaseDS$slp <- as.factor(heartDiseaseDS$slp)
+heartDiseaseDS$output <- as.factor(heartDiseaseDS$output)
+```
+
+Volvemos a representar la estructura, ahora las variables categoricas / binarias se representan correctamente, con el número de elementos de cada clase, mientras que las variables númericas se representan con sus datos estadísticos de media, desviación, percentiles...
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Observamos variables estadísticas del conjunto de datos
+summary(heartDiseaseDS)
+```
+
+## Estudio de los datos mediante gráficos
+
+En este apartado vamos a generar histogramas y gráficos que ayuden a entender mejor el significado de los datos.  
+En primer lugar, observamos que la variable destino NO esta balanceada:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+barplot(prop.table(table(heartDiseaseDS$output)),col=c("#D55E00", "#009E73"),
+        main="Pacientes con enfermedades cardiacas",
+        legend.texto=c("0 - Sin enfermedad cardíaca","1 - Con enfermedad cardíaca"),
+        xlab ="Presencia de enfermedad cardíaca", ylab = "Porcentaje",ylim=c(0,0.8) )
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# Distribución de muestras por edad y sexo
+barplot(prop.table(table(heartDiseaseDS$sex, heartDiseaseDS$age)),
+        ylim = c(0, 0.1),
+        main = "Distribución de muestras por edad y sexo",
+        xlab = 'Edad/Sexo', ylab='Frecuencia',
+        col = c("#CC79A7", "#56B4E9"))
+```
+
+Como podemos observar tenemos una buena representación por grupos de edad-sexo, con un poco de sobrerepresentación de la clase de sexo hombre.
+
+Continuamos estudiando el resto de las variables númericas en relación a la variable objetivo.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=8}
+histList<- list()
+heartDiseaseDSAUX= heartDiseaseDS %>% select(all_of(c('age','trtbps','chol','thalachh',
+                                                      'oldpeak', 'output')))
+
+for(y in 1:5){
+  col <- names(heartDiseaseDSAUX)[y]
+  ggp <- ggplot(heartDiseaseDSAUX, aes_string(x = col, fill=heartDiseaseDSAUX$output)) +
+  geom_histogram(bins = 30, color = "black")+labs(fill = "Enfermedad")
+  histList[[y]] <- ggp # añadimos cada plot a la lista vacía
+}
+
+multiplot(plotlist = histList, coles = 1)
+```
+Algunas observaciones que podemos realizar:
+
+  - **Edad (age):** A mayor edad la posibilidad de tener una enfermedad cardiaca aumenta. En edades tempranas el número de casos con / sin enfermedad se mueven en porcentajes similares.
+  - **Presión sanguínea en reposo (trtbps):** Tener una presión sanguinea en reposo elevada (> 120) aumenta las opciones de tener enfermedad cardíaca.
+  - **Colesterol (chol):** Un colesterol elevado (> 200) también dispara las opciones de tener una enfermedad cardíaca
+  - **Thalachh (thal):** Tener un valor superior a 140 disminuye las opciones a tener una enfermedad cardíaca.
+  
+Revisando la relación de las variables categóricas con respecto al target:
+  
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.width=7, fig.height=8}
+histList<- list()
+heartDiseaseDSAUX= heartDiseaseDS %>% select(all_of(c('cp','restecg','caa','thall','slp',
+                                                      'output')))
+
+for(y in 1:5){
+  col <- names(heartDiseaseDSAUX)[y]
+  ggp <- ggplot(heartDiseaseDSAUX, aes_string(x = col, fill=heartDiseaseDSAUX$output)) +
+  geom_bar(color = "black")+labs(fill = "Enfermedad")
+  histList[[y]] <- ggp # añadimos cada plot a la lista vacía
+}
+multiplot(plotlist = histList, coles = 1)
+```
+De estas primeras variables categóricas podemos extraer las siguientes conclusiones:
+
+  - **Dolor en el pecho (cp):**  Personas con un dolor angína tipica son más propensos a tener una enfermedad cardíaca
+  - La clase de "Hipertrofia ventriculo izquierdo" de la variable restecg está infrarepresentada en comparación con las otras dos clases.
+  - Igualmente, la clase "Pendiente de subida" de la variable slope también está infrarepresentada en comparación con las otras clases de la misma variable.
+  
+  Esto puede provocar que los algoritmos ignoren dicha clase.
+  
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.width=7, fig.height=5.5}
+histList<- list()
+heartDiseaseDSAUX= heartDiseaseDS %>% select(all_of(c('restecg', 'sex','fbs','exng',
+                                                      'output')))
+
+for(y in 1:4){
+  col <- names(heartDiseaseDSAUX)[y]
+  ggp <- ggplot(heartDiseaseDSAUX, aes_string(x = col, fill=heartDiseaseDSAUX$output)) +
+  geom_bar(color = "black")+labs(fill = "Enfermedad")
+  histList[[y]] <- ggp # añadimos cada plot a la lista vacía
+}
+multiplot(plotlist = histList, coles = 1)
+```
+
+Puede verse también la frecuencia cardiaca máxima en contraste con la edad. 
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+plot(heartDiseaseDS[c("age", "thalachh")], 
+     col=c("#D55E00", "#009E73")[heartDiseaseDS$output],
+     main="Clasificación real")
+```
+
+## Búsqueda de correlaciones
+
+De forma previa a la búsqueda de correlaciones entre las variables, vamos a realizar una decodificación de las variables de tipo categórico en forma ONE-HOT. 
+
+Debe tenerse en cuenta, que al realizar la codificación ONE-HOT las variables binarias han pasado a ser dos variables. De las dos variables obtenidas por cada variable binaria, se procederá a eliminar una de ellas, ya que por propia definición, ya están en forma ONE-HOT, y al incorporarse como dos variables se va a introducir una alta correlación inversa.
+
+Adicionalmente, en el resto de variables categoricas no binarias se procederá también a eliminar una de las variables, ya que la información queda igualmente representada por las otras variables generadas haciendo = 0.
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+dummy <- dummyVars(" ~ .", data=heartDiseaseDS)
+heartDiseaseDSOH <- data.frame(predict(dummy, newdata=heartDiseaseDS))
+
+#Eliminamos una de las variables binarias, por ser redundantes
+heartDiseaseDSOH <- select(heartDiseaseDSOH, -c("sex.Mujer", "exng.No", "fbs.No",
+                                                "output.Sin.enfermedad.cardiaca"))
+
+# También eliminamos las variables categóricas con sufijo, ya que la información está 
+# igualmente representada por las otras variables obtenidas de la variable original
+heartDiseaseDSOH <- select(heartDiseaseDSOH, -c("cp.Angina.atipica", "restecg.Normal",
+                                                "slp.Plano", "caa.0",
+                                                "thall.Defecto.permanente"))
+
+str(heartDiseaseDSOH, list.len=ncol(heartDiseaseDSOH))
+```
+
+Con las variables que hemos mantenido y nos interesan, realizamos una matriz de correlación:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
+if(!require("corrplot")) install.packages("corrplot"); library("corrplot")
+res<-cor(heartDiseaseDSOH)
+corrplot(res,method="color",tl.col="black", tl.srt=30, order = "AOE",
+number.cex=0.75,sig.level = 0.01, addCoef.col = "black")
+```
+De la matriz podemos extraer las siguientes observaciones:
+
+- *Existe alta correlación NEGATIVA entre:*
+
+    -- **Dolor de pecho:** dolor no anginal y angina tipica.
+    
+A pesar de lo anterior, ninguna variable tiene una correlación positiva o negativa superior a 0.8
+
+# Análisis de los datos
+
+## Selección de los grupos de datos que se quieren analizar
+
+Se va a analizar de una parte los datos relativos a los pacientes con enfermedad cardíaca y los que no presentan enfermedades cardíacas, atendiendo a términos de variables como la edad, sexo, presión arterial en reposo, y colesterol.
+
+## Comprobación de la normalidad y homogeneidad de la varianza
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Grupos
+heartDiseaseDSConEnfermedad <- heartDiseaseDS %>% filter(output == "Con enfermedad cardiaca")
+heartDiseaseDSSinEnfermedad <- heartDiseaseDS %>% filter(output == "Sin enfermedad cardiaca")
+
+# Comprobación de la normalidad
+ShapiroConEnfermedad <- shapiro.test(heartDiseaseDSConEnfermedad$age)
+ShapiroSinEnfermedad <- shapiro.test(heartDiseaseDSSinEnfermedad$age)
+
+print(ShapiroConEnfermedad)
+print(ShapiroSinEnfermedad)
+```
+
+Según los resultados de la prueba de normalidad de Shapiro-Wilk, para el grupo de datos con enfermedad cardíaca se obtiene un valor de p = 0.07524, y para el grupo de datos sin enfermedad cardíaca se obtiene un valor de p = 0.1017.
+
+En ambos casos, los valores de p son mayores que el nivel de significancia comúnmente utilizado de 0.05, por lo que no hay evidencia suficiente para rechazar la hipótesis nula de normalidad en ninguno de los dos grupos. Por lo tanto, podemos asumir que las variables "age" en ambos grupos siguen una distribución normal.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# Comprobación de homogeneidad de varianza
+levene_test <- leveneTest(age ~ output, data = heartDiseaseDS)
+
+# Imprimir resultado
+print(levene_test)
+```
+
+
+## Aplicación de pruebas estadísticas
+
+### La edad como factor influyente en la presencia de enfermedades cardíacas
+
+En primer lugar, vamos a realizar una prueba de t de Student para determinar si hay una diferencia significativa entre las medias de edad de dos grupos. Se va a comparar la edad promedio de los pacientes que sufrieron un ataque al corazón contra la edad promedio de los pacientes que no lo hicieron. 
+La hipótesis nula sería que no hay ninguna diferencia entre las medias de edad de estos dos grupos.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+t.test(age ~ output, data = heartDiseaseDS)
+```
+
+La media de edad de las personas con enfermedad cardiaca es de 58.35 años, mientras que la media de edad de las personas sin enfermedad cardiaca es de 52.10 años.
+El valor p es extremadamente pequeño 1.381e-05,  menor que 0.05, esto significa que es poco probable que los resultados que estamos viendo se deban al azar. Por otro lado, el intervalo de confianza indica que, si hiciéramos la misma prueba muchas veces, esperaríamos que la diferencia entre las medias de las edades de los dos grupos se encuentre entre 3.53 y 8.97 años en el 95% de las veces.
+
+Como conclusión podemos afirmar que la prueba de t de Student sugiere que hay una diferencia significativa en las medias de las edades de las personas con enfermedad cardiaca y las personas sin enfermedad cardiaca. Podríamos interpretar esto como que la edad puede ser un factor influyente en la presencia de una enfermedad cardiaca. 
+
+### El sexo como factor influyente en la presencia de enfermedades cardíacas
+
+A continuación, vamos a comprobar la influencia del sexo del paciente en la presencia de enfermedades cardíacas del corazón. Para ello vamos a realizar una prueba de Chi-cuadrado, que es un análisis estadístico que se utiliza para determinar si hay una asociación significativa entre dos variables categóricas en una población. En este caso se va a revisar la asociación  entre las variables de 'sex' y 'output' en el conjunto de datos.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+chisq.test(heartDiseaseDS$sex, heartDiseaseDS$output)
+```
+
+El valor p es 0.0009876, que es mucho menor que el umbral común de 0.05, lo que indica que la hipótesis nula de que las variables son independientes puede ser rechazada con confianza.
+Atendiendo a los resultados de la prueba podemos observar que hay una asociación significativa entre las variables 'sex' y 'output'.
+
+### Regresión
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+modeloRegresion <- glm(output ~ age + sex + cp + trtbps + chol, data = heartDiseaseDS,
+                       family = binomial())
+summary(modeloRegresion)
+```
+Según se observa, las variables 'age', 'sex' y tener el valor de 'Angina tipica' son variables estadísticamente significativas en el modelo. Sin embargo, otras variables como 'trtbps' y 'chol' no son estadísticamente significativas en este modelo, lo que significa que no hay suficiente evidencia para sugerir que estas variables tengan un efecto en la presencia o no de enfermedades cardíacas.
+
+**Algunas observaciones:**
+
+  - **Edad (Age):** La variable "edad" tiene una relación negativa y significativa con la variable dependiente, ya que su coeficiente es -0.086515 y el valor p es 0.001117 (menor que 0.05). Esto significa que por cada aumento unitario en la edad, la variable dependiente disminuiría en 0.086515 unidades, manteniendo constantes las otras variables.
+ 
+  - **Tipo de dolor en el pecho (cp):** Las diferentes categorías de dolor en el pecho parecen tener un efecto diferente en la variable dependiente. En particular, tener 'angina típica' disminuye significativamente la variable dependiente (coeficiente de -2.041044, valor p de 0.000733). Sin embargo, las categorías 'asintomática' y 'dolor no anginal' no son significativas en el modelo, lo que sugiere que, con los datos disponibles, no podemos afirmar que tengan un efecto en la variable dependiente.
+ - **Presión arterial en reposo (trtbps) y colesterol (chol)**: Estas variables no son significativas en el modelo (valores p de 0.345954 y 0.500815, respectivamente).
+ 
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+write.csv(heartDiseaseDS, file = "heart_clean.csv", row.names = FALSE)
+```
+
+# Conclusiones
+
+Como conclusiones de esta práctica podemos extraer que hay determinadas variables que parecen tener una influencia en la presencia de enfermedades cardíacas, tal es el caso de la edad o el sexo del paciente, así como la presencia o no de dolor de agína tipica. Por otro lado, se ha visto que con la información que se dispone, las variables como el colesterol en sangre, o la presión sanguínea en reposo no parecen estar ligadas a la variable objetivo.
